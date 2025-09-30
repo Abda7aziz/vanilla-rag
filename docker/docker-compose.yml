@@ -1,0 +1,35 @@
+version: "3.9"
+services:
+  rag_api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: rag_api
+    env_file:
+      - ../.env
+    environment:
+      - PG_HOST=pg
+    ports:
+      - "8000:8000"
+    depends_on:
+      pg:
+        condition: service_healthy
+    restart: unless-stopped
+
+  pg:
+    image: pgvector/pgvector:pg16
+    container_name: rag_pg
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ragpass
+      POSTGRES_DB: ragdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ../.pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d ragdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
