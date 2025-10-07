@@ -49,6 +49,6 @@ def query(req: QueryRequest):
     
     sources = [
         Source(id=h["id"], score=h["score"], text=h["text"], metadata=h.get("metadata"))
-        for h in hits
+        for h in top_hits
     ]
     return QueryResponse(answer=answer, sources=sources)
