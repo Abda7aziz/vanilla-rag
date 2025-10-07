@@ -9,10 +9,10 @@ class Settings(BaseSettings):
     # Vector Backend
     VECTOR_BACKEND: str = Field("postgres")  # default
 
-    # LLM (OpenAI-compatible; e.g., vLLM)
-    OPENAI_API_KEY: str = Field("EMPTY")
-    OPENAI_BASE_URL: str = Field("http://localhost:8005/v1")
-    LLM_MODEL: str = Field("openai/gpt-oss-120b")
+    # LLM (OpenAI-compatible; e.g., local Ollama)
+    OPENAI_API_KEY: str = Field("ollama")
+    OPENAI_BASE_URL: str = Field("http://localhost:11434/v1")
+    LLM_MODEL: str = Field("llama3.1")
 
     # Retrieval
     TOP_K: int = Field(6)

@@ -5,11 +5,11 @@ Minimal, production-leaning scaffold for a **Dense Pipeline RAG** app using:
 - **FastAPI** (backend)
 - **Postgres** (vector store, external)
 - **BAAI/bge-m3** via `sentence-transformers` (embeddings)
-- **Any OpenAI-compatible LLM endpoint** (e.g., your vLLM server for `gpt-oss-20b`)
+- **Any OpenAI-compatible LLM endpoint** (e.g., Ollama or vLLM)
 
 ## Quickstart
 
-1) Create & edit `.env` (see `.env.example`).
+1) Create & edit `.env` (see `.env.ollama` or `.env.vllm` ).
 2) Install deps:
    ```bash
    pip install -r requirements.txt
