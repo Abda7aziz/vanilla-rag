@@ -9,7 +9,7 @@ _MODEL = None
 def get_model():
     global _MODEL
     if _MODEL is None:
-        _MODEL = SentenceTransformer(settings.EMBEDDING_MODEL)
+        _MODEL = SentenceTransformer(settings.EMBEDDING_MODEL,device="cpu")
     return _MODEL
 
 def embed_documents(texts: list[str]) -> list[list[float]]:

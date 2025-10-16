@@ -27,7 +27,7 @@ def rerank_chunks(query: str, chunks: list[dict], top_k: int = 5):
         list[dict]: The top_k chunks sorted by relevance score in descending order.
     """
     # Initialize the cross-encoder model for scoring relevance
-    model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+    model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2", device='cpu')
 
     # Prepare pairs of (query, chunk_text) for scoring
     pairs = [(query, chunk['text']) for chunk in chunks]

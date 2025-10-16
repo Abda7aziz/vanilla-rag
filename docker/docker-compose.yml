@@ -6,30 +6,7 @@ services:
       dockerfile: docker/Dockerfile
     container_name: rag_api
     env_file:
-      - ../.env
-    environment:
-      - PG_HOST=pg
+      - ../.env   # must contain PG_HOST=34.166.56.20, PG_PORT=5432, PG_USER=..., PG_PASSWORD=..., PG_DB=..., PG_SCHEMA=...
     ports:
-      - "8000:8000"
-    depends_on:
-      pg:
-        condition: service_healthy
+      - "8010:8010"
     restart: unless-stopped
-
-  pg:
-    image: pgvector/pgvector:pg16
-    container_name: rag_pg
-    environment:
-      POSTGRES_USER: rag
-      POSTGRES_PASSWORD: ragpass
-      POSTGRES_DB: ragdb
-    ports:
-      - "5432:5432"
-    volumes:
-      - ../.pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rag -d ragdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5

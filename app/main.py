@@ -33,7 +33,6 @@ def chunk(req: ChunkRequest):
 
 @app.post("/ingest", response_model=IngestResponse)
 def ingest(req: IngestRequest):
-    print([c.model_dump() for c in req.chunks])
     res = ingest_texts_pg([c.model_dump() for c in req.chunks])
     return res
 

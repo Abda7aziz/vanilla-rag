@@ -9,3 +9,4 @@ numpy==1.26.4
 openai==1.109.1
 psycopg[binary]==3.2.3
 SQLAlchemy==2.0.35
+cloud-sql-python-connector[pg8000]

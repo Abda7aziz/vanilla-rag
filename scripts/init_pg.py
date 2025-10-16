@@ -1,17 +1,7 @@
-# scripts/init_pg.py
-"""
-Initialize PostgreSQL with pgvector and base tables for RAG.
-Loads env via app.config.Settings (pydantic) so you can control
-host/user/db from .env without editing this script.
-
-If you hit errors, this script will print the DSN (minus password)
-and the exact SQL statement label that failed so it's easy to debug.
-"""
-
+import sqlalchemy
+from sqlalchemy import text
+from google.cloud.sql.connector import Connector, IPTypes
 from app.config import settings
-import psycopg
-import sys
-import traceback
 
 DDL_ENABLE_VECTOR = "CREATE EXTENSION IF NOT EXISTS vector;"
 
@@ -29,65 +19,64 @@ CREATE TABLE IF NOT EXISTS chunks (
   chunk_index INT,
   text    TEXT NOT NULL,
   metadata JSONB,
-  embedding vector(1024)  -- pgvector type
+  embedding vector(1024)
 );
 """
 
-# HNSW index for cosine similarity (works well with normalized embeddings)
 DDL_INDEX_HNSW = """
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes
-        WHERE schemaname = 'public' AND indexname = 'idx_chunks_embedding_hnsw'
-    ) THEN
-        CREATE INDEX idx_chunks_embedding_hnsw
-        ON chunks
-        USING hnsw (embedding vector_cosine_ops)
-        WITH (m = 16, ef_construction = 200);
-    END IF;
-END$$;
+CREATE INDEX IF NOT EXISTS idx_chunks_embedding_hnsw
+ON chunks
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 200);
 """
 
-def _exec(cur, sql: str, label: str):
-    try:
-        cur.execute(sql)
-        print(f"✅ {label}")
-    except Exception:
-        print(f"❌ Failed: {label}")
-        traceback.print_exc()
-        raise
 
-def main():
-    dsn_preview = (
-        f"host={settings.PG_HOST} port={settings.PG_PORT} "
-        f"db={settings.PG_DB} user={settings.PG_USER}"
-    )
-    print("Connecting to Postgres:", dsn_preview)
+def create_engine_via_connector():
+    connector = Connector()
 
-    try:
-        conn = psycopg.connect(
-            host=settings.PG_HOST,
-            port=settings.PG_PORT,
+    def getconn():
+        return connector.connect(
+            settings.INSTANCE_CONNECTION_NAME,
+            driver="pg8000",
             user=settings.PG_USER,
             password=settings.PG_PASSWORD,
-            dbname=settings.PG_DB,
+            db=settings.PG_DB,
+           
         )
-    except Exception:
-        print("❌ Could not connect to Postgres with the above DSN (check host/port/user/db/password).")
-        traceback.print_exc()
-        sys.exit(1)
 
+    engine = sqlalchemy.create_engine(
+        "postgresql+pg8000://",
+        creator=getconn,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=5,
+        future=True,
+    )
+    return engine, connector
+
+def main():
+    print("→ Connecting via Cloud SQL Connector (no IP)…")
+    print(f"   Instance: {settings.INSTANCE_CONNECTION_NAME}")
+    print(f"   DB/User: {settings.PG_DB}/{settings.PG_USER}")
+    print(f"   Schema : {settings.PG_SCHEMA}")
+
+
+    engine, connector = create_engine_via_connector()
     try:
-        with conn:
-            with conn.cursor() as cur:
-                _exec(cur, DDL_ENABLE_VECTOR, "Enable pgvector extension")
-                _exec(cur, DDL_DOCUMENTS, "Create table documents")
-                _exec(cur, DDL_CHUNKS, "Create table chunks")
-                _exec(cur, DDL_INDEX_HNSW, "Create HNSW index on chunks.embedding (cosine)")
-        print("\n✅ pgvector initialized (extension, tables, index).\n")
+        with engine.begin() as conn:
+            # 1) سكيمة
+            conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{settings.PG_SCHEMA}"'))
+            # 2) search_path
+            conn.execute(text(f'SET search_path TO "{settings.PG_SCHEMA}", public'))
+            # 3) vector
+            conn.execute(text(DDL_ENABLE_VECTOR))
+            # 4) الجداول والفهرس
+            conn.execute(text(DDL_DOCUMENTS))
+            conn.execute(text(DDL_CHUNKS))
+            conn.execute(text(DDL_INDEX_HNSW))
+        print("✅ Initialized pgvector + tables + index in schema:", settings.PG_SCHEMA)
     finally:
-        conn.close()
+        connector.close()
 
 if __name__ == "__main__":
     main()
