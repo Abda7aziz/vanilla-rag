@@ -1,12 +1,26 @@
-version: "3.9"
+# version: "3.9"
 services:
+  rag_api_dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: rag-api-dev
+    volumes:
+      - ../:/app
+    env_file:
+      - ../.env
+    ports:
+      - "7001:8001"
+    restart: unless-stopped
+
+
   rag_api:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
-    container_name: rag_api
+      dockerfile: docker/Dockerfile.prod
+    container_name: rag-api-prod
     env_file:
-      - ../.env   # must contain PG_HOST=34.166.56.20, PG_PORT=5432, PG_USER=..., PG_PASSWORD=..., PG_DB=..., PG_SCHEMA=...
+      - ../.env
     ports:
-      - "8010:8010"
+      - "8001:8001"
     restart: unless-stopped

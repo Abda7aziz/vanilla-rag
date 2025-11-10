@@ -12,7 +12,7 @@ from app.config import settings
 def get_conn():
     # Create a psycopg3 connection to the public IP
     conn = psycopg.connect(
-        host=settings.PG_HOST,          # e.g. 34.166.56.20
+        host=settings.PG_HOST,          
         port=settings.PG_PORT,          # usually 5432
         user=settings.PG_USER,          # e.g. postgres
         password=settings.PG_PASSWORD,  # be sure it's quoted properly in .env

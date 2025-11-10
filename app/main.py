@@ -3,7 +3,7 @@ from .schemas import IngestRequest, QueryRequest, QueryResponse, Source,ChunkRes
 from .chunk import chunk_text,rerank_chunks
 from .ingest_pg import ingest_texts_pg
 from .retrieve_pg import retrieve_pg
-from .llm import generate_answer
+# from .llm import generate_answer
 from .config import settings
 
 app = FastAPI(title="RAG FastAPI Scaffold (Postgres only)", version="1.0.0")
@@ -33,21 +33,30 @@ def chunk(req: ChunkRequest):
 
 @app.post("/ingest", response_model=IngestResponse)
 def ingest(req: IngestRequest):
-    res = ingest_texts_pg([c.model_dump() for c in req.chunks])
+    res = ingest_texts_pg(req
+        )
     return res
 
 @app.post("/query", response_model=QueryResponse)
 def query(req: QueryRequest):
+    print(req)
     # Step 1: retrieve more than you need
-    candidates = retrieve_pg(req.query, top_k=req.top_k)
-
+    print('Retriving Candidates...')
+    candidates = retrieve_pg(req.query, top_k=req.top_k,domain_name=req.domain_name)
+    print(candidates)
     # Step 2: rerank down to the final top_k
+    print('Reranking...')
     top_hits = rerank_chunks(req.query, candidates, top_k=(req.top_k or settings.TOP_K))
-
-    answer = generate_answer(req.query, top_hits)
-    
+    print('Top Hits...\n',top_hits)
+    # answer = generate_answer(req.query, top_hits)
+    # print('answer')
     sources = [
-        Source(id=h["id"], score=h["score"], text=h["text"], metadata=h.get("metadata"))
+        Source(
+            text=h["text"],
+            chunk_metadata=h.get("chunk_metadata"),
+            doc_metadata=h.get("doc_metadata"),
+            score=h["score"]
+            )
         for h in top_hits
     ]
-    return QueryResponse(answer=answer, sources=sources)
+    return QueryResponse(sources=sources)

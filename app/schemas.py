@@ -13,10 +13,10 @@ class ChunkRequest(BaseModel):
     strategy: str = "default"
 
 class Chunk(BaseModel):
-    id: str
-    doc_id: str
     text: str
     metadata: Dict[str, Any]
+    chunk_index: str
+    
 
 class ChunkResponse(BaseModel):
     chunks: List[Chunk]
@@ -28,6 +28,9 @@ class ChunkResponse(BaseModel):
 
 # /ingest
 class IngestRequest(BaseModel):
+    domain: str
+    domain_description: Optional[str] = ""  # default to empty string
+    document_metadata: Dict[str, Any]
     chunks: List[Chunk]
 
 class IngestResponse(BaseModel):
@@ -37,13 +40,15 @@ class IngestResponse(BaseModel):
 class QueryRequest(BaseModel):
     query: str
     top_k: int | None = None
+    domain_name: Optional[str] = None
 
 class Source(BaseModel):
-    id: str
-    score: float
+    # id: str
     text: str
-    metadata: Dict[str, Any] | None = None
+    chunk_metadata: Dict[str, Any] | None = None
+    doc_metadata: Dict[str, Any] | None = None
+    score: float
 
 class QueryResponse(BaseModel):
-    answer: str
+    # answer: str
     sources: List[Source]

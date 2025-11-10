@@ -3,76 +3,76 @@ import json
 from typing import List, Dict, Any
 from .embeddings import embed_documents
 from .store_pg import get_conn
+from .schemas import IngestRequest
 
-def ingest_texts_pg(chunks: List[Dict[str, Any]]):
+def ingest_texts_pg(ingest: IngestRequest):
     """
-    Ingest pre-chunked documents into Postgres with embeddings.
-    Each chunk dict must include:
-      - id (chunk_id, e.g., "doc1:0")
-      - doc_id (the parent document id)
-      - text (the chunk text)
-      - metadata (JSON-serializable dict)
+    Ingest a single document with its chunks into Postgres.
+    - Domain is resolved or created
+    - A new document is inserted with a generated UUID
+    - Each chunk is embedded and inserted with a generated UUID
     """
-    # Extract info
-    ids = [c["id"] for c in chunks]
-    texts = [c["text"] for c in chunks]
-    metas = [json.dumps(c.get("metadata", {})) for c in chunks]
-    doc_rows = [(c["doc_id"], json.dumps(c.get("metadata", {}))) for c in chunks]
-
-    # Embed texts
-    embs = embed_documents(texts)
-
-    # Prepare rows for Postgres
-    rows = []
-    for cid, txt, meta, emb in zip(ids, texts, metas, embs):
-        print(cid)
-        print(",,,,", cid.split(":"))
-        doc_id, chunk_index = cid.split(":")[0], int(cid.split(":")[1])
-        emb_str = f"[{','.join(f'{x:.7f}' for x in emb)}]"  # pgvector format
-        rows.append((cid, doc_id, chunk_index, txt, meta, emb_str))
-
-    # --- DB upsert ---
     conn = get_conn()
     cur = conn.cursor()
+
     try:
-        # NOTE: pg8000's cursor doesn't support the context manager protocol,
-        # so we open/close it manually instead of using `with conn.cursor() as cur:`
-
-        # Upsert documents
-        cur.executemany(
-            """
-            INSERT INTO documents (doc_id, metadata)
+        # Step 1: Ensure domain exists with description
+        cur.execute("""
+            INSERT INTO rag.domains (domain_name, description)
             VALUES (%s, %s)
-            ON CONFLICT (doc_id) DO UPDATE SET metadata = EXCLUDED.metadata;
-            """,
-            doc_rows,
-        )
+            ON CONFLICT (domain_name) DO NOTHING;
+        """, (ingest.domain, ingest.domain_description or ""))
 
-        # Upsert chunks
-        cur.executemany(
-            """
-            INSERT INTO chunks (chunk_id, doc_id, chunk_index, text, metadata, embedding)
-            VALUES (%s, %s, %s, %s, %s, %s::vector)
-            ON CONFLICT (chunk_id) DO UPDATE
-            SET text = EXCLUDED.text,
-                metadata = EXCLUDED.metadata,
-                embedding = EXCLUDED.embedding;
-            """,
-            rows,
-        )
+        # Step 2: Get domain_id
+        cur.execute("""
+            SELECT domain_id FROM rag.domains WHERE domain_name = %s;
+        """, (ingest.domain,))
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("❌ Could not fetch domain_id — domain might be missing")
+        print('domain\n',row)
+        domain_id = row["domain_id"]
 
-        # If autocommit is off for any reason, commit explicitly (safe no-op if on)
-        if hasattr(conn, "commit"):
-            conn.commit()
+        # Step 3: Insert new document
+        cur.execute("""
+            INSERT INTO rag.documents (domain_id, metadata)
+            VALUES (%s, %s)
+            RETURNING doc_id;
+        """, (domain_id, json.dumps(ingest.document_metadata)))
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("❌ Could not fetch doc_id — document might be missing")
+        print('doc_id\n',row)
+        doc_id = row['doc_id']
 
+        # Step 4: Embed chunks
+        texts = [chunk.text for chunk in ingest.chunks]
+        embeddings = embed_documents(texts)
+
+        # Step 5: Prepare and insert chunks
+        chunk_rows = []
+        for chunk, emb in zip(ingest.chunks, embeddings):
+            emb_str = f"[{','.join(f'{x:.7f}' for x in emb)}]"
+            chunk_rows.append((
+                doc_id,
+                chunk.chunk_index,
+                chunk.text,
+                json.dumps(chunk.metadata),
+                emb_str
+            ))
+
+        cur.executemany("""
+            INSERT INTO rag.chunks (doc_id, chunk_index, text, metadata, embedding)
+            VALUES (%s, %s, %s, %s, %s::vector);
+        """, chunk_rows)
+
+        conn.commit()
+        print(f"✅ Ingested document {doc_id} into domain '{ingest.domain}'")
+
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"❌ Failed to ingest: {e}")
     finally:
-        try:
-            cur.close()
-        except Exception:
-            pass
-        try:
-            conn.close()
-        except Exception:
-            pass
-
-    return {"ingested_chunks": len(rows)}
+        cur.close()
+        conn.close()
+    return {"ingested_chunks": len(chunk_rows)}

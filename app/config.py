@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     PG_USER: str = Field("rag")
     PG_PASSWORD: str = Field("ragpass")
     PG_DB: str = Field("expro_ai_dev_db")
-    PG_SCHEMA: str = Field("expro_app")  # ← السكيمة المطلوبة (غير public)
+    PG_SCHEMA: str = Field("rag") 
     # Cloud SQL (Postgres) via Connector
     INSTANCE_CONNECTION_NAME: str = Field('use your own', description="project:region:instance")
     ADC_FILE_PATH: str = Field("~/.config/gcloud/application_default_credentials.json")
